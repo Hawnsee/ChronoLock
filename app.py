@@ -25,6 +25,8 @@ class ChronoLockApp(ctk.CTk):
         self.remaining_seconds = 0
         self.vault_to_unlock = ""
         self._clipboard_clear_id = None
+        self._hide_gen_id = None
+        self._hide_unlock_id = None
         
         # Selector de idioma
         self.frame_top = ctk.CTkFrame(self, fg_color="transparent")
@@ -248,7 +250,10 @@ class ChronoLockApp(ctk.CTk):
             
             self.entry_name.delete(0, "end")
             self.frame_gen_actions.pack(pady=10)
+            self.lbl_copy_status_gen.configure(text=t("msg_hide_warning"))
             self.lbl_copy_status_gen.pack(pady=2)
+            
+            self._schedule_hide_password("_hide_gen_id", self.reset_generate_tab)
             
         except Exception as e:
             messagebox.showerror(t("err_title"), str(e))
@@ -322,11 +327,18 @@ class ChronoLockApp(ctk.CTk):
             self.entry_unlocked.pack(pady=10)
             
             self.btn_copy_unlock.pack(pady=5)
+            self.lbl_copy_status_unlock.configure(text=t("msg_hide_warning"))
             self.lbl_copy_status_unlock.pack(pady=2)
             self.frame_vault_actions.pack(pady=5)
             self.btn_volver.pack(pady=10)
+            
+            self._schedule_hide_password("_hide_unlock_id", self.reset_unlock_tab)
 
     def reset_generate_tab(self):
+        if self._hide_gen_id:
+            self.after_cancel(self._hide_gen_id)
+            self._hide_gen_id = None
+            
         self.lbl_result.configure(text="")
         self.entry_result.configure(state="normal")
         self.entry_result.delete(0, "end")
@@ -339,6 +351,10 @@ class ChronoLockApp(ctk.CTk):
         self.lbl_copy_status_gen.pack_forget()
 
     def reset_unlock_tab(self):
+        if self._hide_unlock_id:
+            self.after_cancel(self._hide_unlock_id)
+            self._hide_unlock_id = None
+            
         self.lbl_timer.pack_forget()
         self.entry_unlocked.pack_forget()
         self.btn_copy_unlock.pack_forget()
@@ -431,6 +447,21 @@ class ChronoLockApp(ctk.CTk):
             self._clipboard_clear_id = None
         
         self._clipboard_clear_id = self.after(30000, clear)
+
+    def _schedule_hide_password(self, id_attr_name, reset_callback):
+        """Resetea la pestaña actual (ocultando la contraseña y volviendo atrás) a los 30 segundos."""
+        prev_id = getattr(self, id_attr_name, None)
+        if prev_id:
+            self.after_cancel(prev_id)
+        
+        def hide():
+            try:
+                reset_callback()
+            except Exception:
+                pass
+            setattr(self, id_attr_name, None)
+            
+        setattr(self, id_attr_name, self.after(30000, hide))
 
     def on_closing(self):
         if self.timer_running:

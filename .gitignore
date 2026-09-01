@@ -1,0 +1,19 @@
+# Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entorno virtual
+venv/
+env/
+.env
+
+# Archivos de ChronoLock (Claves y Bóveda)
+secret.key
+vaults/
+config.json
+
+# Archivos de compilacion de PyInstaller
+build/
+dist/
+*.spec

@@ -1,8 +1,12 @@
 import customtkinter as ctk
 import tkinter.messagebox as messagebox
+import tkinter.simpledialog as simpledialog
 import core
+import clipboard
 import os
 from locales import translator, t, LANGUAGES
+
+MAX_LOCK_MINUTES = core.MAX_LOCK_MINUTES
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
@@ -19,7 +23,8 @@ class ChronoLockApp(ctk.CTk):
         
         self.timer_running = False
         self.remaining_seconds = 0
-        self.target_password = ""
+        self.vault_to_unlock = ""
+        self._clipboard_clear_id = None
         
         # Selector de idioma
         self.frame_top = ctk.CTkFrame(self, fg_color="transparent")
@@ -78,6 +83,7 @@ class ChronoLockApp(ctk.CTk):
         self.lbl_time_gen.configure(text=t("lbl_time"))
         self.btn_generate.configure(text=t("btn_generate"))
         self.btn_limpiar_gen.configure(text=t("btn_clear"))
+        self.btn_copy_gen.configure(text=t("btn_copy"))
         
         if self.lbl_result.cget("text") != "":
             self.lbl_result.configure(text=t("msg_gen_success"))
@@ -95,6 +101,9 @@ class ChronoLockApp(ctk.CTk):
                 
         self.btn_unlock.configure(text=t("btn_start_unlock"))
         self.btn_volver.configure(text=t("btn_back"))
+        self.btn_change_time.configure(text=t("btn_change_time"))
+        self.btn_delete_vault.configure(text=t("btn_delete_vault"))
+        self.btn_copy_unlock.configure(text=t("btn_copy"))
         
         if self.entry_unlocked.winfo_ismapped():
             self.unlock_title.configure(text=t("title_unlocked"))
@@ -128,10 +137,18 @@ class ChronoLockApp(ctk.CTk):
         self.lbl_result = ctk.CTkLabel(tab, text="", text_color="#2ecc71", font=ctk.CTkFont(weight="bold"))
         self.lbl_result.pack(pady=5)
         
-        self.entry_result = ctk.CTkEntry(tab, width=400, justify="center", state="readonly", text_color="#2ecc71")
+        self.entry_result = ctk.CTkEntry(tab, width=400, justify="center", state="disabled", text_color="#2ecc71")
         self.entry_result.pack(pady=5)
         
-        self.btn_limpiar_gen = ctk.CTkButton(tab, text=t("btn_clear"), command=self.reset_generate_tab)
+        self.frame_gen_actions = ctk.CTkFrame(tab, fg_color="transparent")
+        
+        self.btn_copy_gen = ctk.CTkButton(self.frame_gen_actions, text=t("btn_copy"), command=self.copy_generated_password, width=140, fg_color="#2980b9", hover_color="#1a5276")
+        self.btn_copy_gen.pack(side="left", padx=5)
+        
+        self.btn_limpiar_gen = ctk.CTkButton(self.frame_gen_actions, text=t("btn_clear"), command=self.reset_generate_tab, width=140)
+        self.btn_limpiar_gen.pack(side="left", padx=5)
+        
+        self.lbl_copy_status_gen = ctk.CTkLabel(tab, text="", text_color="#f39c12", font=ctk.CTkFont(size=12))
 
     def setup_unlock_tab(self):
         self.tab_unlock = self.tabview.tab(self.tab_unlock_name)
@@ -148,11 +165,24 @@ class ChronoLockApp(ctk.CTk):
         self.combo_vaults.configure(command=self.on_vault_select)
         
         self.btn_unlock = ctk.CTkButton(self.tab_unlock, text=t("btn_start_unlock"), command=self.start_unlock, fg_color="#C21807", hover_color="#8A0303")
-        self.btn_unlock.pack(pady=20)
+        self.btn_unlock.pack(pady=10)
+        
+        # Frame para botones de gestión (se mostrará solo tras desbloquear)
+        self.frame_vault_actions = ctk.CTkFrame(self.tab_unlock, fg_color="transparent")
+        
+        self.btn_change_time = ctk.CTkButton(self.frame_vault_actions, text=t("btn_change_time"), command=self.change_vault_time, width=140, fg_color="#2980b9", hover_color="#1a5276")
+        self.btn_change_time.pack(side="left", padx=5)
+        
+        self.btn_delete_vault = ctk.CTkButton(self.frame_vault_actions, text=t("btn_delete_vault"), command=self.delete_vault, width=140, fg_color="#7f1d1d", hover_color="#450a0a")
+        self.btn_delete_vault.pack(side="left", padx=5)
         
         self.lbl_timer = ctk.CTkLabel(self.tab_unlock, text="00:00:00", font=ctk.CTkFont(size=60, weight="bold"))
         
-        self.entry_unlocked = ctk.CTkEntry(self.tab_unlock, width=400, justify="center", state="readonly", text_color="#2ecc71", font=ctk.CTkFont(size=18, weight="bold"))
+        self.entry_unlocked = ctk.CTkEntry(self.tab_unlock, width=400, justify="center", state="disabled", text_color="#2ecc71", font=ctk.CTkFont(size=18, weight="bold"))
+        
+        self.btn_copy_unlock = ctk.CTkButton(self.tab_unlock, text=t("btn_copy"), command=self.copy_unlocked_password, width=160, fg_color="#2980b9", hover_color="#1a5276")
+        
+        self.lbl_copy_status_unlock = ctk.CTkLabel(self.tab_unlock, text="", text_color="#f39c12", font=ctk.CTkFont(size=12))
         
         self.btn_volver = ctk.CTkButton(self.tab_unlock, text=t("btn_back"), command=self.reset_unlock_tab)
 
@@ -201,6 +231,11 @@ class ChronoLockApp(ctk.CTk):
         except ValueError:
             messagebox.showwarning(t("notice_title"), t("err_time_format"))
             return
+
+        # MED-1: Límite de tiempo máximo
+        if lock_time > MAX_LOCK_MINUTES:
+            messagebox.showwarning(t("notice_title"), t("err_time_max", MAX_LOCK_MINUTES))
+            return
             
         try:
             password = core.generate_password(name, lock_time)
@@ -209,10 +244,11 @@ class ChronoLockApp(ctk.CTk):
             self.entry_result.configure(state="normal")
             self.entry_result.delete(0, "end")
             self.entry_result.insert(0, password)
-            self.entry_result.configure(state="readonly")
+            self.entry_result.configure(state="disabled")
             
             self.entry_name.delete(0, "end")
-            self.btn_limpiar_gen.pack(pady=10)
+            self.frame_gen_actions.pack(pady=10)
+            self.lbl_copy_status_gen.pack(pady=2)
             
         except Exception as e:
             messagebox.showerror(t("err_title"), str(e))
@@ -224,13 +260,20 @@ class ChronoLockApp(ctk.CTk):
         try:
             data = core.load_vault_info(name)
             mins = data.get("lock_time_minutes", 30)
-            self.target_password = data.get("password", "")
+            # HIGH-3: Validar que la contraseña existe antes de iniciar
+            password = data.get("password")
+            if not password:
+                messagebox.showerror(t("err_title"), t("err_vault_corrupt"))
+                return
         except Exception as e:
             messagebox.showerror(t("err_title"), str(e))
             return
             
         confirm = messagebox.askyesno(t("conf_title"), t("conf_start", mins))
         if not confirm: return
+        
+        # HIGH-1: Solo guardar el nombre, NO la contraseña desencriptada
+        self.vault_to_unlock = name
         
         self.combo_vaults.pack_forget()
         self.lbl_lock_info.pack_forget()
@@ -258,38 +301,136 @@ class ChronoLockApp(ctk.CTk):
             self.timer_running = False
             self.lbl_timer.configure(text="00:00:00", text_color="#2ecc71")
             
+            # HIGH-1: Desencriptar SOLO ahora, al finalizar el temporizador
+            try:
+                data = core.load_vault_info(self.vault_to_unlock)
+                password = data.get("password", "")
+                if not password:
+                    messagebox.showerror(t("err_title"), t("err_vault_corrupt"))
+                    self.reset_unlock_tab()
+                    return
+            except Exception as e:
+                messagebox.showerror(t("err_title"), str(e))
+                self.reset_unlock_tab()
+                return
+            
             self.unlock_title.configure(text=t("title_unlocked"))
             self.entry_unlocked.configure(state="normal")
             self.entry_unlocked.delete(0, "end")
-            self.entry_unlocked.insert(0, self.target_password)
-            self.entry_unlocked.configure(state="readonly")
-            self.entry_unlocked.pack(pady=20)
+            self.entry_unlocked.insert(0, password)
+            self.entry_unlocked.configure(state="disabled")
+            self.entry_unlocked.pack(pady=10)
             
-            self.btn_volver.pack(pady=20)
-            self.target_password = ""
+            self.btn_copy_unlock.pack(pady=5)
+            self.lbl_copy_status_unlock.pack(pady=2)
+            self.frame_vault_actions.pack(pady=5)
+            self.btn_volver.pack(pady=10)
 
     def reset_generate_tab(self):
         self.lbl_result.configure(text="")
         self.entry_result.configure(state="normal")
         self.entry_result.delete(0, "end")
-        self.entry_result.configure(state="readonly")
+        self.entry_result.configure(state="disabled")
         self.entry_name.delete(0, "end")
         self.entry_time.delete(0, "end")
         self.entry_time.insert(0, "30")
-        self.btn_limpiar_gen.pack_forget()
+        self.frame_gen_actions.pack_forget()
+        self.lbl_copy_status_gen.configure(text="")
+        self.lbl_copy_status_gen.pack_forget()
 
     def reset_unlock_tab(self):
         self.lbl_timer.pack_forget()
         self.entry_unlocked.pack_forget()
+        self.btn_copy_unlock.pack_forget()
+        self.lbl_copy_status_unlock.configure(text="")
+        self.lbl_copy_status_unlock.pack_forget()
+        self.frame_vault_actions.pack_forget()
         self.btn_volver.pack_forget()
         
         self.unlock_title.configure(text=t("title_unlock"))
         self.lbl_timer.configure(text_color=["black", "white"])
+        self.vault_to_unlock = ""
         
         self.combo_vaults.pack(pady=15)
         self.lbl_lock_info.pack(pady=5)
-        self.btn_unlock.pack(pady=20)
+        self.btn_unlock.pack(pady=10)
         self.refresh_vault_list()
+
+    def delete_vault(self):
+        """Elimina la bóveda seleccionada con doble confirmación."""
+        name = self.vault_to_unlock
+        if not name: return
+        
+        # Primera confirmación
+        confirm1 = messagebox.askyesno(t("warn_title"), t("conf_delete_1", name))
+        if not confirm1: return
+        
+        # Segunda confirmación
+        confirm2 = messagebox.askyesno(t("warn_title"), t("conf_delete_2", name))
+        if not confirm2: return
+        
+        try:
+            core.delete_vault(name)
+            messagebox.showinfo(t("notice_title"), t("msg_deleted", name))
+            self.reset_unlock_tab()
+        except Exception as e:
+            messagebox.showerror(t("err_title"), str(e))
+
+    def change_vault_time(self):
+        """Cambia el tiempo de bloqueo de la bóveda seleccionada."""
+        name = self.vault_to_unlock
+        if not name: return
+        
+        new_time = simpledialog.askinteger(
+            t("btn_change_time"),
+            t("dlg_new_time"),
+            parent=self,
+            minvalue=1,
+            maxvalue=MAX_LOCK_MINUTES
+        )
+        
+        if new_time is None: return
+        
+        try:
+            core.update_vault_time(name, new_time)
+            messagebox.showinfo(t("notice_title"), t("msg_time_updated", name, new_time))
+        except Exception as e:
+            messagebox.showerror(t("err_title"), str(e))
+
+    def copy_generated_password(self):
+        """Copia la contraseña generada al portapapeles sin historial."""
+        password = self.entry_result.get()
+        if password:
+            if clipboard.secure_copy(password):
+                self.lbl_copy_status_gen.configure(text=t("msg_copied"))
+                self._schedule_clipboard_clear(self.lbl_copy_status_gen)
+            else:
+                self.lbl_copy_status_gen.configure(text=t("msg_copy_fail"))
+
+    def copy_unlocked_password(self):
+        """Copia la contraseña desbloqueada al portapapeles sin historial."""
+        password = self.entry_unlocked.get()
+        if password:
+            if clipboard.secure_copy(password):
+                self.lbl_copy_status_unlock.configure(text=t("msg_copied"))
+                self._schedule_clipboard_clear(self.lbl_copy_status_unlock)
+            else:
+                self.lbl_copy_status_unlock.configure(text=t("msg_copy_fail"))
+
+    def _schedule_clipboard_clear(self, status_label):
+        """Programa la limpieza del portapapeles en 30 segundos."""
+        if self._clipboard_clear_id:
+            self.after_cancel(self._clipboard_clear_id)
+        
+        def clear():
+            clipboard.clear_clipboard()
+            try:
+                status_label.configure(text=t("msg_clipboard_cleared"))
+            except Exception:
+                pass
+            self._clipboard_clear_id = None
+        
+        self._clipboard_clear_id = self.after(30000, clear)
 
     def on_closing(self):
         if self.timer_running:

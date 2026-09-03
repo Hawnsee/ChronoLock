@@ -61,7 +61,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ Error al copiar al portapapeles.",
         "msg_clipboard_cleared": "🔒 Portapapeles limpiado automáticamente.",
         "msg_password_hidden": "🔒 Contraseña oculta por seguridad.",
-        "msg_hide_warning": "⚠️ Se ocultará en 30 segundos."
+        "msg_hide_warning": "⚠️ Se ocultará en 30 segundos.",
+        "msg_warn_10s": "⚠️ Quedan 10 segundos para que se oculte la contraseña.",
+        "notif_unlocked": "Bóveda '{}' desbloqueada con éxito."
     },
     "en": {
         "title_main": "ChronoLock - Time Vault",
@@ -104,7 +106,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ Failed to copy to clipboard.",
         "msg_clipboard_cleared": "🔒 Clipboard cleared automatically.",
         "msg_password_hidden": "🔒 Password hidden for security.",
-        "msg_hide_warning": "⚠️ Will hide in 30 seconds."
+        "msg_hide_warning": "⚠️ Will hide in 30 seconds.",
+        "msg_warn_10s": "⚠️ 10 seconds remaining until the password is hidden.",
+        "notif_unlocked": "Vault '{}' successfully unlocked."
     },
     "ru": {
         "title_main": "ChronoLock - Хранилище Времени",
@@ -147,7 +151,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ Ошибка копирования в буфер обмена.",
         "msg_clipboard_cleared": "🔒 Буфер обмена автоматически очищен.",
         "msg_password_hidden": "🔒 Пароль скрыт в целях безопасности.",
-        "msg_hide_warning": "⚠️ Скроется через 30 секунд."
+        "msg_hide_warning": "⚠️ Скроется через 30 секунд.",
+        "msg_warn_10s": "⚠️ Осталось 10 секунд до скрытия пароля.",
+        "notif_unlocked": "Хранилище '{}' успешно разблокировано."
     },
     "fr": {
         "title_main": "ChronoLock - Coffre-fort temporel",
@@ -190,7 +196,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ Échec de la copie dans le presse-papiers.",
         "msg_clipboard_cleared": "🔒 Presse-papiers vidé automatiquement.",
         "msg_password_hidden": "🔒 Mot de passe masqué par sécurité.",
-        "msg_hide_warning": "⚠️ Sera masqué dans 30 secondes."
+        "msg_hide_warning": "⚠️ Sera masqué dans 30 secondes.",
+        "msg_warn_10s": "⚠️ Il reste 10 secondes avant que le mot de passe ne soit masqué.",
+        "notif_unlocked": "Coffre-fort '{}' déverrouillé avec succès."
     },
     "ja": {
         "title_main": "ChronoLock - タイムボルト",
@@ -233,7 +241,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ クリップボードへのコピーに失敗しました。",
         "msg_clipboard_cleared": "🔒 クリップボードが自動的に消去されました。",
         "msg_password_hidden": "🔒 セキュリティのためパスワードを非表示にしました。",
-        "msg_hide_warning": "⚠️ 30秒後に非表示になります。"
+        "msg_hide_warning": "⚠️ 30秒後に非表示になります。",
+        "msg_warn_10s": "⚠️ パスワードが非表示になるまで残り10秒です。",
+        "notif_unlocked": "ボルト「{}」のロックが解除されました。"
     },
     "zh": {
         "title_main": "ChronoLock - 时间金库",
@@ -276,7 +286,9 @@ TRANSLATIONS = {
         "msg_copy_fail": "❌ 复制到剪贴板失败。",
         "msg_clipboard_cleared": "🔒 剪贴板已自动清除。",
         "msg_password_hidden": "🔒 为安全起见密码已隐藏。",
-        "msg_hide_warning": "⚠️ 将在30秒后隐藏。"
+        "msg_hide_warning": "⚠️ 将在30秒后隐藏。",
+        "msg_warn_10s": "⚠️ 密码将在 10 秒后隐藏。",
+        "notif_unlocked": "金库 '{}' 成功解锁。"
     }
 }
 

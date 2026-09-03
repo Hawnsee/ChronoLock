@@ -5,6 +5,7 @@ import core
 import clipboard
 import os
 from locales import translator, t, LANGUAGES
+from notifypy import Notify
 
 MAX_LOCK_MINUTES = core.MAX_LOCK_MINUTES
 
@@ -25,8 +26,15 @@ class ChronoLockApp(ctk.CTk):
         self.remaining_seconds = 0
         self.vault_to_unlock = ""
         self._clipboard_clear_id = None
+        self._hide_warn_id = None
+        self._hide_exec_id = None
         self._hide_gen_id = None
-        self._hide_unlock_id = None
+        
+        self._pending_reset_callback = None
+        self._pending_vault_name = ""
+        self._hide_timer_started = False
+        
+        self.bind("<FocusIn>", self._on_focus_in)
         
         # Selector de idioma
         self.frame_top = ctk.CTkFrame(self, fg_color="transparent")
@@ -253,7 +261,7 @@ class ChronoLockApp(ctk.CTk):
             self.lbl_copy_status_gen.configure(text=t("msg_hide_warning"))
             self.lbl_copy_status_gen.pack(pady=2)
             
-            self._schedule_hide_password("_hide_gen_id", self.reset_generate_tab)
+            self._schedule_hide_password(self.reset_generate_tab, name)
             
         except Exception as e:
             messagebox.showerror(t("err_title"), str(e))
@@ -319,6 +327,13 @@ class ChronoLockApp(ctk.CTk):
                 self.reset_unlock_tab()
                 return
             
+            if password is None:
+                messagebox.showerror(t("err_title"), t("err_vault_corrupt"))
+                self.reset_unlock_tab()
+                return
+            
+            self.send_notification(t("title_main"), t("notif_unlocked").format(self.vault_to_unlock))
+            
             self.unlock_title.configure(text=t("title_unlocked"))
             self.entry_unlocked.configure(state="normal")
             self.entry_unlocked.delete(0, "end")
@@ -332,12 +347,10 @@ class ChronoLockApp(ctk.CTk):
             self.frame_vault_actions.pack(pady=5)
             self.btn_volver.pack(pady=10)
             
-            self._schedule_hide_password("_hide_unlock_id", self.reset_unlock_tab)
+            self._schedule_hide_password(self.reset_unlock_tab, self.vault_to_unlock)
 
     def reset_generate_tab(self):
-        if self._hide_gen_id:
-            self.after_cancel(self._hide_gen_id)
-            self._hide_gen_id = None
+        self._cancel_hide_timers()
             
         self.lbl_result.configure(text="")
         self.entry_result.configure(state="normal")
@@ -351,9 +364,7 @@ class ChronoLockApp(ctk.CTk):
         self.lbl_copy_status_gen.pack_forget()
 
     def reset_unlock_tab(self):
-        if self._hide_unlock_id:
-            self.after_cancel(self._hide_unlock_id)
-            self._hide_unlock_id = None
+        self._cancel_hide_timers()
             
         self.lbl_timer.pack_forget()
         self.entry_unlocked.pack_forget()
@@ -448,20 +459,57 @@ class ChronoLockApp(ctk.CTk):
         
         self._clipboard_clear_id = self.after(30000, clear)
 
-    def _schedule_hide_password(self, id_attr_name, reset_callback):
-        """Resetea la pestaña actual (ocultando la contraseña y volviendo atrás) a los 30 segundos."""
-        prev_id = getattr(self, id_attr_name, None)
-        if prev_id:
-            self.after_cancel(prev_id)
+    def _cancel_hide_timers(self):
+        for timer_attr in ["_hide_warn_id", "_hide_exec_id"]:
+            tid = getattr(self, timer_attr, None)
+            if tid:
+                self.after_cancel(tid)
+            setattr(self, timer_attr, None)
+
+    def _schedule_hide_password(self, reset_callback, vault_name=""):
+        """Prepara el ocultamiento. Si hay foco, empieza ya. Si no, espera."""
+        self._cancel_hide_timers()
         
-        def hide():
-            try:
-                reset_callback()
-            except Exception:
-                pass
-            setattr(self, id_attr_name, None)
+        self._pending_reset_callback = reset_callback
+        self._pending_vault_name = vault_name
+        self._hide_timer_started = False
+        
+        self._check_and_start_hide_timer()
+
+    def _check_and_start_hide_timer(self):
+        if self._hide_timer_started or not getattr(self, "_pending_reset_callback", None):
+            return
             
-        setattr(self, id_attr_name, self.after(30000, hide))
+        if self.focus_displayof() is not None:
+            self._hide_timer_started = True
+            
+            def warn():
+                self.send_notification(t("title_main"), t("msg_warn_10s"))
+                self._hide_exec_id = self.after(10000, hide)
+                
+            def hide():
+                self.send_notification(t("title_main"), t("msg_password_hidden"))
+                try:
+                    self._pending_reset_callback()
+                except Exception:
+                    pass
+                self._pending_reset_callback = None
+                
+            self._hide_warn_id = self.after(20000, warn)
+
+    def _on_focus_in(self, event):
+        if getattr(event, "widget", None) == self:
+            self._check_and_start_hide_timer()
+
+    def send_notification(self, title, message):
+        try:
+            n = Notify()
+            n.title = title
+            n.message = message
+            n.application_name = "ChronoLock"
+            n.send(block=False)
+        except Exception:
+            pass
 
     def on_closing(self):
         if self.timer_running:
